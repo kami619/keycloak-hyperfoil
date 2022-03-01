@@ -1,22 +1,28 @@
 name: keycloak-poc
 http:
   host: http://localhost:8080
-  sharedConnections: 100
+  sharedConnections: 10
 phases:
 - steadyState:
     constantRate:
       startAfter: rampUp
       usersPerSec: 0.3
       duration: 1m
-      maxSessions: 2
+      maxSessions: 6
+    #atOnce:
+    #  users: 1
       scenario: &loginUsernamePassword
           - openLandingPage:
             - randomUUID:
                 toVar: uuid
+            - randomInt: realmIndex <- 0 .. 9
+            - randomInt: clientIndex <- 0 .. 9
             - set: scope <- openid profile
-            - set: redirectUri <- localhost:8080/auth/realms/realm-0/account/
+            - template: 
+                pattern: localhost:8080/auth/realms/realm-${realmIndex}/account/
+                toVar: redirectUri
             - httpRequest:
-                GET: /auth/realms/realm-0/protocol/openid-connect/auth?login=true&response_type=code&client_id=client-0&state=${uuid}&redirect_uri=${redirectUri}&scope=${scope}
+                GET: /auth/realms/realm-${realmIndex}/protocol/openid-connect/auth?login=true&response_type=code&client_id=client-${clientIndex}&state=${uuid}&redirect_uri=${redirectUri}&scope=${scope}
                 headers: &uiHeaders
                   Accept : text/html,application/xhtml+xml,application/xml
                   Accept-Encoding : gzip, deflate
@@ -35,28 +41,48 @@ phases:
             # - log: #debug log
             #     message: 'Login Form URI after clean up is ${replace/&amp;/\&/g:login-form-uri}'
           - submitLogin:
+            - randomInt:
+                min: 1
+                max: 100
+                toVar: userIndex
             - httpRequest:
                 POST: ${replace/&amp;/\&/g:login-form-uri}
                 body:
                   form:
                   - name: username
-                    value: "user-0"
+                    pattern: user-${userIndex}
                   - name: password
-                    value: "user-0-password"
+                    pattern: user-${userIndex}-password
                   - name: login
                     pattern: "Log in"
                 headers: *uiHeaders
                 handler:
                   status:
                     range: 302
-            #- thinkTime: 5s
+                  header:
+                    filter:
+                      header:
+                        value: location
+                      processor:
+                        store: login-redirect
+            - log: #debug log
+                message: 'login-redirect var value is : ${login-redirect}'
+            - thinkTime: 5s
           - logout:
             - httpRequest:
-                GET: /auth/realms/realm-0/protocol/openid-connect/logout?redirect_uri=${redirectUri}
+                GET: /auth/realms/realm-${realmIndex}/protocol/openid-connect/logout?redirect_uri=${redirectUri}
                 headers: *uiHeaders
                 handler:
                   status:
                     range: 302
+                  header:
+                    filter:
+                      header:
+                        value: location
+                      processor:
+                        store: redirectUri
+            - log: #debug log
+                message: 'redirectUri var value is : ${redirectUri}'
 
 - smokeTest:
     atOnce:
@@ -69,6 +95,7 @@ phases:
       initialUsersPerSec: 0.1
       targetUsersPerSec: 0.3
       duration: 30s
+      maxSessions: 8
       scenario: *loginUsernamePassword
 - rampDown:
     decreasingRate:
@@ -76,4 +103,5 @@ phases:
       initialUsersPerSec: 0.2
       targetUsersPerSec: 0.1
       duration: 30s
+      maxSessions: 4
       scenario: *loginUsernamePassword
