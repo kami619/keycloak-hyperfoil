@@ -25,8 +25,7 @@ Hyperfoil currently exports results in a raw json format, but I didn't find any 
 
 #### How to run a stress test. I.e. how to find the maximum performance of the system with a particular test scenario.
 
-The current solution for this with Gatling-based test-suite is a bash script that runs a loop of individual steady-load test runs, evaluating test assertions after each iteration, and deciding whether to continue the loop or not.
-We have ability to run incremental test loop, and a test loop for interval halving algorithm.
+As the test execution is done via a cli tool, we can look at ways to automate the options for this and externalize the parameters specified within the yaml file, but I didnt find anything which is out of the box to perform such activity
 
 #### Result evaluation on-the-fly during a single test run:
 
